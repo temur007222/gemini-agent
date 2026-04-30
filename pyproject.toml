@@ -1,0 +1,27 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "build", "dist", "__pycache__"]
+
+[tool.ruff.lint]
+# Bug-finding subset: pyflakes (F), pycodestyle (E,W), bugbear (B)
+select = ["E", "F", "W", "B"]
+# Long lines and ambiguous unicode in docstrings are intentional in this project
+ignore = ["E501", "RUF001"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["agent.py", "main.py", "memory_manager.py", "observer.py", "tools"]
+exclude = ["\\.venv", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["google.generativeai", "google.generativeai.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # google.generativeai is deprecated upstream; we run on it intentionally.
+    "ignore::FutureWarning",
+]

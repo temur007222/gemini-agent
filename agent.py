@@ -10,9 +10,15 @@ This satisfies SRP (orchestration only), OCP (new tools require zero
 changes here), and DIP (depends on interfaces, not implementations).
 """
 
+import warnings
 from typing import Any, Dict, List, Optional
 
-import google.generativeai as genai
+# The google-generativeai package emits a FutureWarning announcing deprecation
+# in favour of google-genai. We silence it locally so it doesn't pollute the
+# REPL or test output. Migration is tracked under "Known limitations" in README.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+    import google.generativeai as genai  # type: ignore[import-untyped,unused-ignore]
 
 from memory_manager import MemoryManager
 from tools import ToolRegistry
@@ -50,22 +56,28 @@ class Agent:
         self.observer = observer or AgentObserver()
         self.max_iterations = max_iterations
 
-        genai.configure(api_key=api_key)
-        self._model = genai.GenerativeModel(
+        genai.configure(api_key=api_key)  # type: ignore[attr-defined]
+        self._model: Any = genai.GenerativeModel(  # type: ignore[attr-defined]
             model_name=model_name,
             system_instruction=system_instruction,
-            tools=[{"function_declarations": registry.get_declarations()}] if registry.list_names() else None,
+            tools=(
+                [{"function_declarations": registry.get_declarations()}]
+                if registry.list_names()
+                else None
+            ),
         )
+
+    # ----- Public API ---------------------------------------------------
 
     def chat(self, user_input: str) -> str:
         """Run one user turn through the ReAct loop. Returns the final text."""
         self.observer.emit(EVT_USER_INPUT, {"text": user_input})
         self.memory.add_user_message(user_input)
 
-        for iteration in range(self.max_iterations):
+        for _iteration in range(self.max_iterations):
             try:
                 response = self._call_llm()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - boundary catch
                 msg = f"LLM call failed: {e}"
                 self.observer.emit(EVT_ERROR, {"message": msg})
                 return f"[Agent error] {msg}"
@@ -78,6 +90,7 @@ class Agent:
             function_calls = self._collect_function_calls(parts)
             text_parts = [p.text for p in parts if hasattr(p, "text") and p.text]
 
+            # Persist the model turn (text + any function_calls) into memory.
             stored: List[Dict[str, Any]] = []
             for p in parts:
                 if hasattr(p, "text") and p.text:
@@ -92,18 +105,23 @@ class Agent:
             if stored:
                 self.memory.add_model_message(stored)
 
+            # If no tool calls -> we have the final answer.
             if not function_calls:
                 final = "\n".join(text_parts).strip() or "(no answer produced)"
                 self.observer.emit(EVT_FINAL_ANSWER, {"text": final})
                 return final
 
+            # Otherwise execute every requested tool and feed results back.
             for fc in function_calls:
                 self._execute_and_record(fc["name"], fc["args"])
 
+        # Iteration cap hit
         self.observer.emit(EVT_ERROR, {"message": "Max iterations reached"})
         return "[Agent error] Reasoning loop exceeded max iterations."
 
-    def _call_llm(self):
+    # ----- Internals ----------------------------------------------------
+
+    def _call_llm(self) -> Any:
         history = self.memory.get_history()
         self.observer.emit(EVT_LLM_REQUEST, {"history_size": len(history)})
         response = self._model.generate_content(history)
@@ -115,7 +133,7 @@ class Agent:
         return response
 
     @staticmethod
-    def _extract_parts(response) -> Optional[List[Any]]:
+    def _extract_parts(response: Any) -> Optional[List[Any]]:
         candidates = getattr(response, "candidates", None) or []
         if not candidates:
             return None
