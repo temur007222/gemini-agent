@@ -1,7 +1,15 @@
 # Personal Assistant Agent — Gemini + ReAct
 
+[![CI](https://github.com/temur007222/gemini-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/temur007222/gemini-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](pyproject.toml)
+[![mypy: strict](https://img.shields.io/badge/mypy-strict-success)](pyproject.toml)
+[![ruff](https://img.shields.io/badge/lint-ruff-success)](pyproject.toml)
+
 An adaptive AI agent built on the Google Gemini API, architected with SOLID
 principles and Gang-of-Four design patterns.
+
+> **Quick verification (no API key needed)** — `pip install -r requirements.txt && pytest -v` runs the full 70-case suite against a mocked Gemini SDK and stubbed HTTP. The Agent loop, ReAct correctness, tool security (path traversal, AST whitelist, language whitelist), and memory wire format are all verified offline.
 
 ## Architecture
 
@@ -118,10 +126,14 @@ classDiagram
 
 - **[`USER.md`](USER.md)** — end-user runbook (installation, REPL commands, troubleshooting).
 - **[`DEVELOPER.md`](DEVELOPER.md)** — architecture, file layout, "add a new tool in 5 minutes", quality gates.
-- **[`JOURNAL.md`](JOURNAL.md)** — staged progress log (course requirement).
+- **[`tests/SCENARIOS.md`](tests/SCENARIOS.md)** — every assignment-required scenario mapped to the test that proves it.
+- **[`JOURNAL.md`](JOURNAL.md)** — staged progress log (course requirement, Steps 1–4).
+- **[`CHANGELOG.md`](CHANGELOG.md)** — release history and what changed at each tag.
 - **[`DEMO.md`](DEMO.md)** — captured session transcript across all five test scenarios.
 
 ## Setup
+
+### Local (recommended for development)
 
 ```bash
 pip install -r requirements.txt
@@ -129,6 +141,17 @@ export GEMINI_API_KEY="your_key"
 python main.py                  # default INFO logs
 python main.py --log-level DEBUG  # full LLM/tool trace
 ```
+
+### Docker (recommended for evaluation / shared environments)
+
+```bash
+cp .env.example .env            # then edit .env to add your key
+docker compose run --rm agent
+```
+
+The image is multi-stage (`python:3.13-slim` runtime, ~120 MB), runs as a
+non-root user, and never bakes the API key — it's only read from the `.env`
+file at container start.
 
 ## Tools
 

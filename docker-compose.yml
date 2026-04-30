@@ -1,0 +1,17 @@
+# Convenience launcher for the containerised agent.
+# Pre-req: `cp .env.example .env` and fill in GEMINI_API_KEY.
+# Run:     `docker compose run --rm agent`
+services:
+  agent:
+    build: .
+    image: gemini-agent:latest
+    container_name: gemini-agent
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    environment:
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    volumes:
+      # Optional: mount your local notes folder so FileReaderTool can see them
+      - ./agent_files:/app/agent_files:ro

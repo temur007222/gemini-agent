@@ -46,7 +46,7 @@ class Agent:
         registry: ToolRegistry,
         memory: MemoryManager,
         api_key: str,
-        model_name: str = "gemini-2.0-flash",
+        model_name: str = "gemini-2.5-flash",
         observer: Optional[AgentObserver] = None,
         system_instruction: str = _DEFAULT_SYSTEM_INSTRUCTION,
         max_iterations: int = 6,

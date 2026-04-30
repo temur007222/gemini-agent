@@ -63,7 +63,7 @@ def main() -> int:
         memory=memory,
         api_key=api_key,
         observer=observer,
-        model_name=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+        model_name=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
     )
 
     sections: list[str] = [
