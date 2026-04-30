@@ -6,6 +6,7 @@ Subscribers register a callback for named events; the Agent emits events
 without knowing or caring who is listening.
 """
 
+import logging
 from typing import Any, Callable, Dict, List
 
 
@@ -37,30 +38,55 @@ class AgentObserver:
 
 
 class ConsoleLogger:
-    """Minimal observer that prints a verbose trace of agent activity."""
+    """Observer that emits a trace of agent activity through `logging`.
 
-    def __init__(self, observer: AgentObserver, verbose: bool = False) -> None:
-        self.verbose = verbose
+    Levels:
+        DEBUG    -> includes LLM-request/response trace (when verbose)
+        INFO     -> tool calls and tool results (always shown by default)
+        WARNING  -> agent error events
+    """
+
+    def __init__(
+        self,
+        observer: AgentObserver,
+        verbose: bool = False,
+        logger: logging.Logger | None = None,
+    ) -> None:
+        self._verbose = verbose
+        self._logger = logger or logging.getLogger("agent")
+        self._observer = observer
+
         observer.subscribe(EVT_TOOL_CALL, self._on_tool_call)
         observer.subscribe(EVT_TOOL_RESULT, self._on_tool_result)
         observer.subscribe(EVT_ERROR, self._on_error)
-        if verbose:
-            observer.subscribe(EVT_LLM_REQUEST, self._on_llm_req)
-            observer.subscribe(EVT_LLM_RESPONSE, self._on_llm_resp)
+        # Always subscribe — the verbose flag gates emission, not subscription,
+        # so toggling /verbose at runtime takes effect immediately.
+        observer.subscribe(EVT_LLM_REQUEST, self._on_llm_req)
+        observer.subscribe(EVT_LLM_RESPONSE, self._on_llm_resp)
+
+    @property
+    def verbose(self) -> bool:
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, value: bool) -> None:
+        self._verbose = bool(value)
 
     def _on_tool_call(self, p: Dict[str, Any]) -> None:
-        print(f"  [tool→] {p.get('name')}({p.get('arguments')})")
+        self._logger.info("[tool→] %s(%s)", p.get("name"), p.get("arguments"))
 
     def _on_tool_result(self, p: Dict[str, Any]) -> None:
-        result = p.get("result", {})
+        result = p.get("result", {}) or {}
         status = result.get("status", "?")
-        print(f"  [tool←] {p.get('name')} status={status}")
+        self._logger.info("[tool←] %s status=%s", p.get("name"), status)
 
     def _on_error(self, p: Dict[str, Any]) -> None:
-        print(f"  [error] {p.get('message')}")
+        self._logger.warning("[error] %s", p.get("message"))
 
     def _on_llm_req(self, p: Dict[str, Any]) -> None:
-        print(f"  [llm→] turns_in_history={p.get('history_size')}")
+        if self._verbose:
+            self._logger.debug("[llm→] turns_in_history=%s", p.get("history_size"))
 
     def _on_llm_resp(self, p: Dict[str, Any]) -> None:
-        print(f"  [llm←] has_function_call={p.get('has_function_call')}")
+        if self._verbose:
+            self._logger.debug("[llm←] has_function_call=%s", p.get("has_function_call"))
