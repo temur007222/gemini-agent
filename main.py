@@ -1,0 +1,106 @@
+"""
+main.py - CLI entry point for the Personal Assistant agent.
+
+Usage:
+    export GEMINI_API_KEY="your_key"
+    python main.py
+
+Commands inside the REPL:
+    /tools    list registered tools
+    /clear    wipe conversation memory
+    /verbose  toggle verbose LLM tracing
+    /quit     exit
+"""
+
+import os
+import sys
+
+from agent import Agent
+from memory_manager import MemoryManager
+from observer import AgentObserver, ConsoleLogger
+from tools import (
+    ToolRegistry,
+    CalculatorTool,
+    WeatherTool,
+    TranslatorTool,
+    FileReaderTool,
+)
+
+
+BANNER = """
+╔══════════════════════════════════════════════╗
+║   Personal Assistant Agent (Gemini + ReAct)  ║
+╚══════════════════════════════════════════════╝
+Type your message. Commands: /tools  /clear  /verbose  /quit
+"""
+
+
+def build_registry() -> ToolRegistry:
+    """Compose the ToolRegistry with all available tools.
+
+    To add a new tool: implement BaseTool and register it here.
+    The Agent itself never needs to be modified — that's the OCP win.
+    """
+    registry = ToolRegistry()
+    registry.register(CalculatorTool())
+    registry.register(WeatherTool())
+    registry.register(TranslatorTool())
+    registry.register(FileReaderTool())
+    return registry
+
+
+def main() -> int:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("ERROR: GEMINI_API_KEY environment variable is not set.", file=sys.stderr)
+        print("  Linux/macOS:  export GEMINI_API_KEY='your_key'", file=sys.stderr)
+        print("  Windows:      set GEMINI_API_KEY=your_key", file=sys.stderr)
+        return 1
+
+    registry = build_registry()
+    memory = MemoryManager(max_turns=50)
+    observer = AgentObserver()
+    logger = ConsoleLogger(observer, verbose=False)
+
+    agent = Agent(
+        registry=registry,
+        memory=memory,
+        api_key=api_key,
+        observer=observer,
+        model_name=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+    )
+
+    print(BANNER)
+    print(f"Registered tools: {', '.join(registry.list_names())}\n")
+
+    while True:
+        try:
+            user_input = input("You > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nBye!")
+            return 0
+
+        if not user_input:
+            continue
+
+        if user_input.lower() in ("/quit", "/exit"):
+            print("Bye!")
+            return 0
+        if user_input.lower() == "/tools":
+            print("Tools:", ", ".join(registry.list_names()))
+            continue
+        if user_input.lower() == "/clear":
+            memory.clear()
+            print("(memory cleared)")
+            continue
+        if user_input.lower() == "/verbose":
+            logger.verbose = not logger.verbose
+            print(f"(verbose = {logger.verbose})")
+            continue
+
+        answer = agent.chat(user_input)
+        print(f"\nAgent > {answer}\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
