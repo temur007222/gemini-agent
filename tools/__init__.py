@@ -6,6 +6,7 @@ from .calculator_tool import CalculatorTool
 from .weather_tool import WeatherTool
 from .translator_tool import TranslatorTool
 from .file_reader_tool import FileReaderTool
+from .datetime_tool import DateTimeTool
 
 __all__ = [
     "BaseTool",
@@ -14,4 +15,5 @@ __all__ = [
     "WeatherTool",
     "TranslatorTool",
     "FileReaderTool",
+    "DateTimeTool",
 ]

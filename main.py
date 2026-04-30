@@ -3,15 +3,17 @@ main.py - CLI entry point for the Personal Assistant agent.
 
 Usage:
     export GEMINI_API_KEY="your_key"
-    python main.py
+    python main.py [--log-level {DEBUG,INFO,WARNING}]
 
 Commands inside the REPL:
     /tools    list registered tools
     /clear    wipe conversation memory
-    /verbose  toggle verbose LLM tracing
+    /verbose  toggle verbose LLM tracing (DEBUG-level events)
     /quit     exit
 """
 
+import argparse
+import logging
 import os
 import sys
 
@@ -24,6 +26,7 @@ from tools import (
     WeatherTool,
     TranslatorTool,
     FileReaderTool,
+    DateTimeTool,
 )
 
 
@@ -46,21 +49,59 @@ def build_registry() -> ToolRegistry:
     registry.register(WeatherTool())
     registry.register(TranslatorTool())
     registry.register(FileReaderTool())
+    registry.register(DateTimeTool())
     return registry
 
 
-def main() -> int:
+def configure_logging(level_name: str) -> None:
+    """Wire the root 'agent' logger with a clean, single-line console format.
+
+    Idempotent: clears any pre-existing handlers so re-runs in tests or REPLs
+    don't duplicate output.
+    """
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    logger = logging.getLogger("agent")
+    logger.setLevel(level)
+    logger.propagate = False
+    for h in list(logger.handlers):
+        logger.removeHandler(h)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s",
+                                           datefmt="%H:%M:%S"))
+    logger.addHandler(handler)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        prog="gemini-agent",
+        description="Personal Assistant Agent (Gemini + ReAct).",
+    )
+    p.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING"],
+        default="INFO",
+        help="Logging verbosity (default: INFO)",
+    )
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    configure_logging(args.log_level)
+    log = logging.getLogger("agent")
+
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        print("ERROR: GEMINI_API_KEY environment variable is not set.", file=sys.stderr)
-        print("  Linux/macOS:  export GEMINI_API_KEY='your_key'", file=sys.stderr)
-        print("  Windows:      set GEMINI_API_KEY=your_key", file=sys.stderr)
+        log.error("GEMINI_API_KEY environment variable is not set.")
+        log.error("  Linux/macOS:  export GEMINI_API_KEY='your_key'")
+        log.error("  Windows:      set GEMINI_API_KEY=your_key")
         return 1
 
     registry = build_registry()
     memory = MemoryManager(max_turns=50)
     observer = AgentObserver()
-    logger = ConsoleLogger(observer, verbose=False)
+    # When --log-level is DEBUG we start verbose; otherwise the user can /verbose to enable.
+    logger = ConsoleLogger(observer, verbose=(args.log_level == "DEBUG"))
 
     agent = Agent(
         registry=registry,
@@ -83,6 +124,7 @@ def main() -> int:
         if not user_input:
             continue
 
+        # CLI commands
         if user_input.lower() in ("/quit", "/exit"):
             print("Bye!")
             return 0
@@ -95,6 +137,9 @@ def main() -> int:
             continue
         if user_input.lower() == "/verbose":
             logger.verbose = not logger.verbose
+            # When toggling on, ensure the logger level is permissive enough.
+            if logger.verbose and log.level > logging.DEBUG:
+                log.setLevel(logging.DEBUG)
             print(f"(verbose = {logger.verbose})")
             continue
 
