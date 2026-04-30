@@ -1,0 +1,9 @@
+"""Shared pytest fixtures and path setup for the test suite."""
+
+import sys
+from pathlib import Path
+
+# Make the project root importable so tests can `import agent`, `from tools import ...`
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
