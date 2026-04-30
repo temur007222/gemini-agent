@@ -1,0 +1,35 @@
+# Byte-compiled / runtime caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Sandbox files (only the seed `notes.md` is tracked)
+agent_files/*
+!agent_files/notes.md
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local zip output
+gemini_agent_final.zip
